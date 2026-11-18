@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\TicketRush.Shared\TicketRush.Shared.csproj" />
+    <ProjectReference Include="..\TicketRush.Modules.Ticketing.Contracts\TicketRush.Modules.Ticketing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Events\TicketRush.Modules.Events.Contracts\TicketRush.Modules.Events.Contracts.csproj" />
+    <ProjectReference Include="..\..\Orders\TicketRush.Modules.Orders.Contracts\TicketRush.Modules.Orders.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
