@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type EventDetails, type Hold, type SeatMap as SeatMapData } from '../api'
 import { SeatMap } from '../components/SeatMap'
-import { eventGradient, formatDate, formatMoney, useCountdown } from '../format'
+import { formatDate, formatMoney, useCountdown } from '../format'
 
 const MAX_SEATS = 6
 const holdKey = (eventId: string) => `ticketrush:hold:${eventId}`
@@ -105,26 +105,30 @@ export function EventPage() {
   }
 
   if (!event) {
-    return message ? <div className="alert error">{message.text}</div> : <div className="card skeleton tall" />
+    return message ? <div className="alert error">{message.text}</div> : <p className="muted">Carregando…</p>
   }
 
   const available = event.totalSeats - seatMap.sold.length - seatMap.held.length
 
   return (
     <>
-      <Link to="/" className="back">← Todos os eventos</Link>
-      <section className="event-hero" style={{ background: eventGradient(event.category) }}>
-        <span className="chip">{event.category}</span>
+      <Link to="/" className="back">Todas as datas</Link>
+      <section className="event-head">
+        <span className="tag">{event.category}</span>
         <h1>{event.title}</h1>
-        <p>{formatDate(event.startsAt)} · {event.venue}, {event.city}</p>
+        <dl className="event-meta">
+          <div><dt>Quando</dt><dd>{formatDate(event.startsAt)}</dd></div>
+          <div><dt>Onde</dt><dd>{event.venue}, {event.city}</dd></div>
+          <div><dt>Lotação</dt><dd>{event.totalSeats} lugares</dd></div>
+        </dl>
         <p className="event-description">{event.description}</p>
       </section>
 
       <div className="event-layout">
-        <div className="card pad">
+        <div className="panel">
           <div className="seatmap-header">
-            <h2>Escolha seus assentos</h2>
-            <span className="muted small">{available} de {event.totalSeats} disponíveis · atualiza a cada 3s</span>
+            <h2>Mapa de assentos</h2>
+            <span className="muted small"><b>{available}</b> de {event.totalSeats} livres agora</span>
           </div>
           <SeatMap
             sections={event.sections}
@@ -134,11 +138,11 @@ export function EventPage() {
           />
         </div>
 
-        <aside className="card pad summary">
+        <aside className="panel summary">
           {hold ? (
             <>
               <div className={`timer ${seconds < 60 ? 'urgent' : ''}`}>
-                <span>Reserva expira em</span>
+                <span>Lugares separados por</span>
                 <strong>{label}</strong>
               </div>
               <ul className="seat-list">
@@ -152,9 +156,9 @@ export function EventPage() {
             </>
           ) : (
             <>
-              <h3>Seu carrinho</h3>
+              <h3>Sua seleção</h3>
               {selected.length === 0 ? (
-                <p className="muted">Clique nos assentos livres para selecionar (até {MAX_SEATS}).</p>
+                <p className="muted small">Toque nos lugares livres do mapa. Até {MAX_SEATS} por compra.</p>
               ) : (
                 <ul className="seat-list">
                   {selected.map((s) => (

@@ -29,7 +29,7 @@ export function MyTicketsPage() {
         </p>
       )}
       {orders?.map((o) => (
-        <Link key={o.id} to={`/pedidos/${o.id}`} className="card pad order-row">
+        <Link key={o.id} to={`/pedidos/${o.id}`} className="panel order-row">
           <div>
             <strong>{o.eventTitle}</strong>
             <p className="muted small">{formatDate(o.eventStartsAt)} · {o.items.map((i) => i.seatId).join(', ')}</p>

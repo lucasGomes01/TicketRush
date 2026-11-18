@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react'
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const date = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+const full = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })
+const time = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
+const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' })
+const month = new Intl.DateTimeFormat('pt-BR', { month: 'short' })
 
 export const formatMoney = (value: number) => money.format(value)
-export const formatDate = (iso: string) => date.format(new Date(iso))
+export const formatDate = (iso: string) => full.format(new Date(iso))
 
-export const categoryHue: Record<string, number> = {
-  Show: 280,
-  Comédia: 35,
-  Concerto: 200,
-  eSports: 150,
-  Cinema: 340,
-}
-
-export function eventGradient(category: string) {
-  const hue = categoryHue[category] ?? 250
-  return `linear-gradient(135deg, hsl(${hue} 80% 55%), hsl(${(hue + 50) % 360} 75% 40%))`
+/** Partes da data para o bloco de calendário da listagem. */
+export function dateParts(iso: string) {
+  const d = new Date(iso)
+  return {
+    day: String(d.getDate()).padStart(2, '0'),
+    month: month.format(d).replace('.', ''),
+    weekday: weekday.format(d).replace('.', ''),
+    time: time.format(d),
+  }
 }
 
 /** Segundos restantes até `expiresAt` (atualiza a cada segundo). */

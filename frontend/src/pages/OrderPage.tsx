@@ -31,15 +31,15 @@ export function OrderPage() {
   }, [id])
 
   if (error) return <div className="alert error">{error}</div>
-  if (!order) return <div className="card skeleton tall" />
+  if (!order) return <p className="muted">Carregando…</p>
 
   const reached = steps.findIndex((s) => s.status === order.status)
   const failed = order.status === 'Refunded' || order.status === 'Expired'
 
   return (
     <div className="narrow">
-      <Link to="/meus-ingressos" className="back">← Meus ingressos</Link>
-      <div className="card pad">
+      <Link to="/meus-ingressos" className="back">Meus ingressos</Link>
+      <div className="panel">
         <h2>{order.eventTitle}</h2>
         <p className="muted">{formatDate(order.eventStartsAt)} · {order.eventVenue}</p>
 

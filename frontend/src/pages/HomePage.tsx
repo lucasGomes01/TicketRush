@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type EventSummary } from '../api'
-import { eventGradient, formatDate, formatMoney } from '../format'
+import { dateParts, formatMoney } from '../format'
 
 export function HomePage() {
   const [events, setEvents] = useState<EventSummary[] | null>(null)
@@ -13,35 +13,45 @@ export function HomePage() {
 
   return (
     <>
-      <section className="hero">
-        <h1>Garanta seu lugar antes que acabe.</h1>
-        <p>
-          Escolha os assentos e eles ficam <strong>reservados só para você por 10 minutos</strong>. Ninguém mais
-          consegue comprar o mesmo lugar, nem com mil pessoas clicando ao mesmo tempo.
+      <section className="intro">
+        <p className="eyebrow">Temporada 2027</p>
+        <h1>Próximas datas</h1>
+        <p className="lede">
+          Escolha o lugar no mapa e ele fica separado para você por dez minutos enquanto finaliza a compra.
         </p>
       </section>
 
       {error && <div className="alert error">{error}</div>}
-      {!events && !error && <div className="grid">{[1, 2, 3].map((i) => <div key={i} className="card skeleton" />)}</div>}
 
-      <div className="grid">
-        {events?.map((event) => (
-          <Link key={event.id} to={`/eventos/${event.id}`} className="card event-card">
-            <div className="event-cover" style={{ background: eventGradient(event.category) }}>
-              <span className="chip">{event.category}</span>
-            </div>
-            <div className="card-body">
-              <h3>{event.title}</h3>
-              <p className="muted">{formatDate(event.startsAt)}</p>
-              <p className="muted">{event.venue} · {event.city}</p>
-              <div className="card-footer">
-                <span>a partir de <strong>{formatMoney(event.minPrice)}</strong></span>
-                <span className="muted small">{event.totalSeats} lugares</span>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+      <ol className="listing">
+        {!events && !error && [1, 2, 3].map((i) => <li key={i} className="listing-row placeholder" />)}
+        {events?.map((event) => {
+          const d = dateParts(event.startsAt)
+          return (
+            <li key={event.id}>
+              <Link to={`/eventos/${event.id}`} className="listing-row">
+                <div className="date-block">
+                  <span className="date-day">{d.day}</span>
+                  <span className="date-month">{d.month}</span>
+                </div>
+                <div className="listing-main">
+                  <span className="tag">{event.category}</span>
+                  <h2>{event.title}</h2>
+                  <p className="muted">
+                    {event.venue}, {event.city} · {d.weekday}, {d.time}
+                  </p>
+                </div>
+                <div className="listing-price">
+                  <span className="muted small">a partir de</span>
+                  <strong>{formatMoney(event.minPrice)}</strong>
+                  <span className="muted small">{event.totalSeats} lugares</span>
+                </div>
+                <span className="listing-cta">Ingressos</span>
+              </Link>
+            </li>
+          )
+        })}
+      </ol>
     </>
   )
 }

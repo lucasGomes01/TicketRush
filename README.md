@@ -1,46 +1,44 @@
-# 🎟 TicketRush
+# TicketRush
 
-Venda de ingressos com **reserva temporária de assentos**, feita para aguentar o "pico de abertura de vendas" sem vender o mesmo lugar duas vezes.
+A ticketing system built around one hard problem: when sales open and thousands of people click the same seat at the same time, nobody should end up with a ticket for a seat that someone else already bought.
 
-**.NET 10 Minimal API** · **Monolito modular** · **Redis** · **DbUp** · **PostgreSQL** · **Dapper** · **React + Vite + TypeScript** · **Testcontainers** · **k6**
+Seats are held for ten minutes while the buyer checks out. The hold is an atomic Redis operation, the sale is protected by a database constraint, and the rare conflict that slips through is refunded automatically.
 
-![Mapa de assentos](docs/seat-map.jpg)
+![Seat map](docs/seat-map.jpg)
 
-## O problema
+**Stack:** .NET 10 Minimal API · modular monolith · PostgreSQL + Dapper · DbUp · Redis · React + Vite + TypeScript · Testcontainers · k6
 
-Quando as vendas de um show abrem, milhares de pessoas clicam no mesmo assento ao mesmo tempo. Um `SELECT` seguido de `UPDATE` cria uma condição de corrida, e o resultado é **overselling**: dois ingressos para a mesma cadeira.
+## How overselling is prevented
 
-O TicketRush resolve isso em camadas:
+A plain `SELECT` followed by an `UPDATE` races under load. TicketRush protects each seat at three levels:
 
-| Camada | Onde | O que garante |
-| --- | --- | --- |
-| **Lock distribuído com Lua** | Redis | Reserva *all-or-nothing* de vários assentos, atômica, com TTL de 10 min |
-| **Constraint única** | PostgreSQL `UNIQUE (event_id, seat_id)` | Última linha de defesa: o banco nunca aceita dois ingressos para o mesmo lugar |
-| **Compensação** | Evento `TicketIssuanceFailed` | Se mesmo assim houver conflito, o pedido é estornado automaticamente |
+1. **Hold (Redis).** A Lua script checks and sets every requested seat key in a single atomic step: either all seats are held or none are. Holds expire on their own after 10 minutes.
+2. **Sale (PostgreSQL).** `ticketing.tickets` has a `UNIQUE (event_id, seat_id)` constraint, so the database will never store two tickets for the same seat, even if a hold expires mid-payment.
+3. **Compensation.** If ticket issuance hits that constraint, Ticketing publishes `TicketIssuanceFailed` and Orders refunds the order.
 
-### Resultado do teste de carga (k6)
+### Load test
 
-500 compradores simultâneos disputando os 10 lugares do evento "Pré-estreia Secreta" (2 já vendidos):
+With k6, 500 virtual users hit the 10-seat "Pré-estreia Secreta" event at once (2 of its seats were already sold):
 
 ```
-holds_accepted ......: 8     ✓ count<=10
-holds_rejected ......: 492
-checks_succeeded ....: 100.00%  (todas as respostas foram 201 ou 409, nenhum erro)
+holds_accepted .....: 8      ✓ count<=10
+holds_rejected .....: 492
+checks_succeeded ...: 100%   every response was 201 or 409, no errors
 ```
 
-**Zero overselling.** Exatamente um vencedor por assento.
+Exactly one winner per free seat.
 
-## Arquitetura
+## Architecture
 
-Monolito modular: **um deploy, módulos isolados**. Cada módulo é dono dos seus endpoints, do seu schema no PostgreSQL e das suas migrações. Um módulo só fala com outro pelo projeto `*.Contracts` (interfaces e eventos de integração), e isso é **verificado por testes de arquitetura**.
+The system is one deployable split into modules. Each module owns its endpoints, its PostgreSQL schema and its migrations. Modules talk to each other only through `*.Contracts` projects (interfaces plus integration events), and architecture tests enforce that rule.
 
 ```mermaid
 flowchart LR
-    subgraph API["TicketRush.Api (Bootstrapper)"]
+    subgraph API["TicketRush.Api (bootstrapper)"]
       direction LR
-      E["Events<br/><small>catálogo, seções, preços</small>"]
-      T["Ticketing<br/><small>reservas e ingressos</small>"]
-      O["Orders<br/><small>checkout e pagamento</small>"]
+      E["Events<br/><small>catalog, sections, prices</small>"]
+      T["Ticketing<br/><small>holds, tickets</small>"]
+      O["Orders<br/><small>checkout, payment</small>"]
     end
 
     T -- "IEventsModuleApi" --> E
@@ -52,87 +50,89 @@ flowchart LR
     E --- PG[("PostgreSQL<br/>schemas: events · ticketing · orders")]
     T --- PG
     O --- PG
-    E --- R[("Redis<br/>cache · locks · rate limit")]
+    E --- R[("Redis<br/>cache · holds · rate limit")]
     T --- R
 ```
 
 ```
 src/
-  Bootstrapper/TicketRush.Api        → Program.cs: só compõe os módulos
-  Shared/TicketRush.Shared           → IModule, DbUp, Outbox, EventBus, cache, rate limit
+  Bootstrapper/TicketRush.Api        Program.cs, which only composes the modules
+  Shared/TicketRush.Shared           IModule, DbUp runner, outbox, event bus, cache, rate limit
   Modules/
     Events/    TicketRush.Modules.Events      (+ .Contracts)
     Ticketing/ TicketRush.Modules.Ticketing   (+ .Contracts)
     Orders/    TicketRush.Modules.Orders      (+ .Contracts)
-      └─ Database/Scripts/*.sql      → migrações DbUp embutidas no assembly do módulo
+      └─ Database/Scripts/*.sql      DbUp migrations embedded in the module assembly
 tests/
-  TicketRush.ArchitectureTests       → regras de fronteira entre módulos (NetArchTest)
-  TicketRush.IntegrationTests        → PostgreSQL + Redis reais via Testcontainers
-frontend/                            → React + Vite + TypeScript
-loadtest/oversell.js                 → script k6
+  TicketRush.ArchitectureTests       module boundary rules (NetArchTest)
+  TicketRush.IntegrationTests        real PostgreSQL + Redis via Testcontainers
+frontend/                            React + Vite + TypeScript
+loadtest/oversell.js                 k6 script
 ```
 
-### Fluxo de compra
+### Purchase flow
 
 ```mermaid
 sequenceDiagram
-    actor U as Comprador
+    actor U as Buyer
     participant T as Ticketing
     participant R as Redis
     participant O as Orders
     participant DB as PostgreSQL
 
     U->>T: POST /api/holds {seatIds}
-    T->>DB: algum assento já vendido?
-    T->>R: EVAL hold.lua (SET NX em todos ou em nenhum, TTL 10min)
-    T-->>U: 201 holdId + expiresAt (ou 409)
+    T->>DB: any seat already sold?
+    T->>R: EVAL hold script (all-or-nothing, TTL 10 min)
+    T-->>U: 201 holdId + expiresAt (or 409)
 
-    U->>O: POST /api/orders {holdId, nome, e-mail}
-    O->>T: GetHold (contrato)
+    U->>O: POST /api/orders {holdId, name, email}
+    O->>T: GetHold (contract)
     O->>DB: INSERT order (Pending)
 
     U->>O: POST /api/orders/{id}/pay
-    O->>T: ExtendHold(15min)
-    O->>DB: UPDATE Paid + INSERT outbox(OrderPaid)  [mesma transação]
+    O->>T: ExtendHold(15 min)
+    O->>DB: UPDATE Paid + INSERT outbox(OrderPaid), same transaction
     O-->>U: 202 Accepted
 
     Note over O,T: OutboxProcessor (FOR UPDATE SKIP LOCKED)
     O-)T: OrderPaid
-    T->>DB: INSERT tickets (UNIQUE event_id+seat_id) + outbox(TicketsIssued)
-    T->>R: libera a reserva
+    T->>DB: INSERT tickets + outbox(TicketsIssued)
+    T->>R: release hold
     T-)O: TicketsIssued
     O->>DB: UPDATE Completed
 ```
 
-## Onde cada tecnologia entra
+## Where each piece fits
 
-### Redis
-- **Reserva de assentos** ([`SeatHoldStore.cs`](src/Modules/Ticketing/TicketRush.Modules.Ticketing/Holds/SeatHoldStore.cs)): um script Lua verifica e grava todas as chaves `hold:seat:{evento}:{assento}` numa única operação atômica. Expira sozinho com TTL.
-- **Mapa de assentos em tempo real**: um único `MGET` traz o estado de centenas de assentos.
-- **Cache-aside** do catálogo de eventos ([`EventsRepository.cs`](src/Modules/Events/TicketRush.Modules.Events/Features/EventsRepository.cs)), invalidado quando um evento é criado.
-- **Rate limit distribuído** na rota de reserva (`INCR` + `EXPIRE`), que vale para todas as instâncias da API.
+**Redis**
+- Seat holds in [`SeatHoldStore.cs`](src/Modules/Ticketing/TicketRush.Modules.Ticketing/Holds/SeatHoldStore.cs): Lua scripts for acquire, extend and release. Release only deletes keys that still belong to the hold.
+- Live seat map: one `MGET` returns the state of every seat in an event.
+- Cache-aside for the event catalog in [`EventsRepository.cs`](src/Modules/Events/TicketRush.Modules.Events/Features/EventsRepository.cs), invalidated when an event is created.
+- A fixed-window rate limit (`INCR` + `EXPIRE`) on the hold endpoint, shared by every API instance.
 
-### DbUp
-- Cada módulo embute seus scripts em `Database/Scripts/*.sql` e tem **seu próprio journal** (`{schema}.schema_versions`). Os módulos evoluem o banco de forma independente, como se fossem serviços separados ([`DatabaseMigrator.cs`](src/Shared/TicketRush.Shared/Database/DatabaseMigrator.cs)).
-- SQL puro e versionado combina com o Dapper: sem ORM e sem "mágica" no acesso a dados.
+**DbUp**
+- Each module embeds its SQL scripts in `Database/Scripts/` and keeps its own journal (`{schema}.schema_versions`), so modules evolve their schemas independently, the way separate services would. See [`DatabaseMigrator.cs`](src/Shared/TicketRush.Shared/Database/DatabaseMigrator.cs).
+- Versioned plain SQL pairs well with Dapper: no ORM and no hidden queries.
 
-### Monolito modular
-- O `Program.cs` só conhece `IModule`. Adicionar um módulo é uma linha.
-- Comunicação síncrona por **interfaces de contrato** e assíncrona por **eventos de integração + Transactional Outbox** (um outbox por schema). Trocar o barramento em memória por RabbitMQ não exige mudar os módulos.
-- **Testes de arquitetura** garantem que nenhum módulo referencia a implementação de outro e que só a classe `XxxModule` é pública.
+**Modular monolith**
+- `Program.cs` only knows `IModule`. Registering a module takes one line.
+- Synchronous calls go through contract interfaces. Asynchronous ones go through integration events and a transactional outbox (one per schema). Swapping the in-memory bus for RabbitMQ would not change the modules.
+- Architecture tests check that no module references another module's implementation and that the `XxxModule` class is the only public type in each module.
 
-## Como rodar
+## Running it
 
-### Tudo com Docker
+### With Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-- Front: http://localhost:8088
-- API + documentação (Scalar): http://localhost:5080/scalar
+- Web: http://localhost:8088
+- API reference (Scalar): http://localhost:5080/scalar
 
-### Desenvolvimento
+The app also works from other devices on the same network at `http://<your-machine-ip>:8088`.
+
+### Local development
 
 ```bash
 docker compose up -d postgres redis
@@ -140,61 +140,59 @@ dotnet run --project src/Bootstrapper/TicketRush.Api   # http://localhost:5080
 cd frontend && npm install && npm run dev               # http://localhost:5173
 ```
 
-As migrações (DbUp) rodam na inicialização da API e já criam eventos de demonstração.
+Migrations run when the API starts and seed a handful of demo events.
 
-### Testes
+### Tests
 
 ```bash
-dotnet test        # precisa do Docker rodando (Testcontainers)
+dotnet test        # Docker must be running (Testcontainers)
 ```
 
-| Teste | O que prova |
+| Test | What it shows |
 | --- | --- |
-| `Concurrent_holds_on_the_same_seat_should_have_exactly_one_winner` | 200 requisições simultâneas no mesmo assento → exatamente 1 `201` e 199 `409` |
-| `Hold_is_all_or_nothing` | Se 1 dos assentos está ocupado, nenhum é reservado |
-| `Full_purchase_issues_tickets_through_the_outbox` | Reserva → pedido → pagamento → ingressos emitidos de forma assíncrona |
-| `Another_client_cannot_checkout_someone_elses_hold` | A reserva pertence a quem a criou |
-| `ModuleBoundaryTests` | Fronteiras entre módulos e migrações por módulo |
+| `Concurrent_holds_on_the_same_seat_should_have_exactly_one_winner` | 200 simultaneous requests for one seat: exactly one `201`, 199 `409` |
+| `Hold_is_all_or_nothing` | If one requested seat is taken, none of them are held |
+| `Full_purchase_issues_tickets_through_the_outbox` | Hold, order, payment, then tickets issued asynchronously |
+| `Another_client_cannot_checkout_someone_elses_hold` | A hold belongs to whoever created it |
+| `ModuleBoundaryTests` | Module boundaries and per-module migrations |
 
-### Teste de carga
+### Load test
 
 ```bash
 docker run --rm -v "$PWD/loadtest:/scripts" -e BASE_URL=http://host.docker.internal:5080 grafana/k6 run /scripts/oversell.js
 ```
 
-## Endpoints
+## API
 
-| Método | Rota | Módulo |
+| Method | Route | Module |
 | --- | --- | --- |
-| `GET` | `/api/events` | Events (cache Redis) |
-| `GET` | `/api/events/{id}` | Events (cache Redis) |
+| `GET` | `/api/events` | Events (cached) |
+| `GET` | `/api/events/{id}` | Events (cached) |
 | `POST` | `/api/events` | Events |
 | `GET` | `/api/events/{id}/seats` | Ticketing |
-| `POST` | `/api/holds` | Ticketing (rate limit) |
+| `POST` | `/api/holds` | Ticketing (rate limited) |
 | `GET` / `DELETE` | `/api/holds/{id}` | Ticketing |
 | `POST` | `/api/orders` | Orders |
 | `POST` | `/api/orders/{id}/pay` | Orders |
 | `GET` | `/api/orders/{id}` | Orders |
 
-O comprador é identificado pelo header `X-Client-Id` (UUID gerado pelo front). Num sistema real ele viria do usuário autenticado.
+Buyers are identified by an `X-Client-Id` header (a UUID the web app generates once per browser). A real system would use an authenticated user instead.
 
-## Decisões e trade-offs
+## Decisions and trade-offs
 
-- **Assentos não são uma tabela**: são derivados de `(seção, fileiras, assentos por fileira)`, no formato `VIP-A12`. Isso evita milhares de linhas por evento. Vendidos ficam em `ticketing.tickets`, reservados ficam no Redis.
-- **Pool de conexões limitado** (`Database:MaxPoolSize`, padrão 40). O teste de concorrência revelou que, com o padrão do Npgsql (100), um pico de acessos esgotava o `max_connections` do PostgreSQL. Com o limite, as requisições aguardam a vez em vez de falhar.
-- **Pagamento simulado**: nenhum dado de cartão é coletado. O ponto de integração com um gateway está marcado no código (pagamento e estorno).
-- **Barramento em memória + outbox**: entrega *at-least-once*, com handlers idempotentes.
+- **Seats are not rows.** They are derived from each section's rows and seats per row and named like `VIP-A12`, which avoids thousands of rows per event. Sold seats live in `ticketing.tickets`; held seats live in Redis.
+- **Bounded connection pool** (`Database:MaxPoolSize`, default 40). The concurrency test showed that Npgsql's default of 100 matches PostgreSQL's default `max_connections`, so a burst of traffic got "too many clients" errors. With a smaller pool, requests wait their turn instead of failing.
+- **Simulated payment.** No card data is collected. The payment and refund calls are where a real gateway would plug in.
+- **In-memory bus + outbox.** Delivery is at-least-once, so the handlers are idempotent.
 
-## Próximos passos
+## What's next
 
-- [ ] Autenticação (JWT) no lugar do `X-Client-Id`
-- [ ] Atualização do mapa via SignalR (Redis backplane) em vez de polling
-- [ ] Fila virtual para eventos muito disputados
-- [ ] OpenTelemetry (traces do fluxo reserva → emissão)
-
----
+- [ ] JWT authentication instead of `X-Client-Id`
+- [ ] Push seat-map updates over SignalR (Redis backplane) instead of polling
+- [ ] Virtual waiting room for very high-demand events
+- [ ] OpenTelemetry traces across hold → order → issuance
 
 <p align="center">
-  <img src="docs/home.jpg" width="49%" alt="Lista de eventos" />
-  <img src="docs/tickets.jpg" width="49%" alt="Ingressos emitidos" />
+  <img src="docs/home.jpg" width="49%" alt="Upcoming events" />
+  <img src="docs/tickets.jpg" width="49%" alt="Issued tickets" />
 </p>

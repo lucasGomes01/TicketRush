@@ -41,7 +41,7 @@ export function CheckoutPage() {
             {error} <Link to="/">Voltar aos eventos</Link>
           </div>
         ) : (
-          <div className="card skeleton tall" />
+          <p className="muted">Carregando…</p>
         )}
       </div>
     )
@@ -51,8 +51,8 @@ export function CheckoutPage() {
 
   return (
     <div className="narrow">
-      <Link to={`/eventos/${hold.eventId}`} className="back">← Voltar ao mapa de assentos</Link>
-      <div className="card pad">
+      <Link to={`/eventos/${hold.eventId}`} className="back">Voltar ao mapa</Link>
+      <div className="panel">
         <div className={`timer ${seconds < 60 ? 'urgent' : ''}`}>
           <span>{expired ? 'Reserva expirada' : 'Finalize em'}</span>
           <strong>{label}</strong>
@@ -76,8 +76,8 @@ export function CheckoutPage() {
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           </label>
           <div className="payment-note">
-            💳 Pagamento <strong>simulado</strong>: nenhum dado de cartão é solicitado. Ao confirmar, o pedido é marcado como
-            pago e os ingressos são emitidos de forma assíncrona (Outbox → módulo Ticketing).
+            Pagamento <strong>simulado</strong>. Nenhum dado de cartão é pedido: ao confirmar, o pedido é marcado como
+            pago e os ingressos chegam em alguns segundos.
           </div>
           <button className="btn primary" disabled={busy || expired}>
             {busy ? 'Processando…' : `Pagar ${formatMoney(hold.total)}`}

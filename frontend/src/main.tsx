@@ -14,7 +14,7 @@ function App() {
       <header className="topbar">
         <div className="container topbar-inner">
           <Link to="/" className="brand">
-            <span className="brand-mark" aria-hidden>🎟</span> TicketRush
+            Ticket<em>Rush</em>
           </Link>
           <nav>
             <NavLink to="/" end>Eventos</NavLink>
@@ -33,7 +33,8 @@ function App() {
         </Routes>
       </main>
       <footer className="footer container">
-        Projeto de portfólio · .NET 10 Minimal API · Monolito modular · Redis · DbUp · React
+        <span>TicketRush</span>
+        <a href="https://github.com/lucasGomes01/TicketRush" target="_blank" rel="noreferrer">código no GitHub</a>
       </footer>
     </BrowserRouter>
   )
