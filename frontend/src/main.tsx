@@ -9,6 +9,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { OrderPage } from './pages/OrderPage'
 import { MyTicketsPage } from './pages/MyTicketsPage'
 import { LoginPage } from './pages/LoginPage'
+import { AdminEventPage } from './pages/AdminEventPage'
 
 function Header() {
   const { user, logout } = useAuth()
@@ -22,6 +23,7 @@ function Header() {
           <NavLink to="/" end>Eventos</NavLink>
           {user ? (
             <>
+              {user.isAdmin && <NavLink to="/admin/eventos/novo">Admin</NavLink>}
               <NavLink to="/meus-ingressos">Meus ingressos</NavLink>
               <span className="nav-user" title={user.email}>{user.name.split(' ')[0]}</span>
               <button type="button" className="nav-link" onClick={logout}>Sair</button>
@@ -49,6 +51,7 @@ function App() {
             <Route path="/checkout/:holdId" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
             <Route path="/pedidos/:id" element={<RequireAuth><OrderPage /></RequireAuth>} />
             <Route path="/meus-ingressos" element={<RequireAuth><MyTicketsPage /></RequireAuth>} />
+            <Route path="/admin/eventos/novo" element={<RequireAuth admin><AdminEventPage /></RequireAuth>} />
             <Route path="*" element={<p className="muted">Página não encontrada.</p>} />
           </Routes>
         </main>

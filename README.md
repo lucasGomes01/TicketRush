@@ -121,7 +121,7 @@ sequenceDiagram
 - The `Identity` module owns accounts in its own `identity` schema. Passwords are hashed with ASP.NET Core Identity's `PasswordHasher` (PBKDF2, HMAC-SHA512, 100k iterations).
 - Register and login return a JWT (HS256, 8 h). Holds and orders require it, and each hold or order belongs to the user in the token's `sub` claim, so "My tickets" works on any device.
 - Login and register are rate limited per IP. A wrong email and a wrong password return the same message, so the API does not reveal who has an account.
-- Admins are not a sign-up option: they come from configuration (`Auth:AdminEmails`). Only admins can create events.
+- Admins are not a sign-up option: they come from configuration (`Auth:AdminEmails`, or `ADMIN_EMAIL` in `.env`). Only admins can create events, either through the API or the admin page at `/admin/eventos/novo`, which shows a live preview of the curved seat map while you set up the sections.
 
 **Modular monolith**
 - `Program.cs` only knows `IModule`. Registering a module takes one line.

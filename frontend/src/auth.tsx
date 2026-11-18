@@ -47,8 +47,11 @@ export function useAuth() {
 /** Caminho da tela de login que volta para a página atual depois de entrar. */
 export const loginPath = (back: string) => `/entrar?volta=${encodeURIComponent(back)}`
 
-export function RequireAuth({ children }: { children: ReactNode }) {
+export function RequireAuth({ children, admin = false }: { children: ReactNode; admin?: boolean }) {
   const { user } = useAuth()
   const location = useLocation()
-  return user ? children : <Navigate to={loginPath(location.pathname)} replace />
+  if (!user) return <Navigate to={loginPath(location.pathname)} replace />
+  // A interface só esconde; quem garante a permissão é a API (política "admin" no POST /api/events).
+  if (admin && !user.isAdmin) return <p className="muted">Esta área é restrita a administradores.</p>
+  return children
 }

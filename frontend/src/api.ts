@@ -130,4 +130,16 @@ export const api = {
   payOrder: (orderId: string) => request<Order>(`/api/orders/${orderId}/pay`, { method: 'POST' }),
   getOrder: (orderId: string) => request<Order>(`/api/orders/${orderId}`),
   listMyOrders: () => request<OrderSummary[]>('/api/orders'),
+  createEvent: (event: NewEvent) =>
+    request<{ id: string }>('/api/events', { method: 'POST', body: JSON.stringify(event) }),
+}
+
+export type NewEvent = {
+  title: string
+  description: string
+  category: string
+  venue: string
+  city: string
+  startsAt: string
+  sections: Section[]
 }
