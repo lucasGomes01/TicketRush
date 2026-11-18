@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, myOrders, type Hold } from '../api'
+import { api, type Hold } from '../api'
+import { useAuth } from '../auth'
 import { formatMoney, useCountdown } from '../format'
 
 export function CheckoutPage() {
@@ -8,8 +9,9 @@ export function CheckoutPage() {
   const navigate = useNavigate()
   const [hold, setHold] = useState<Hold | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const { user } = useAuth()
+  const [name, setName] = useState(user?.name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
   const [busy, setBusy] = useState(false)
   const { seconds, label } = useCountdown(hold?.expiresAt)
 
@@ -24,7 +26,6 @@ export function CheckoutPage() {
     try {
       // Cria o pedido (idempotente por reserva) e simula o pagamento.
       const order = await api.createOrder(holdId, name, email)
-      myOrders.add(order.id)
       await api.payOrder(order.id)
       navigate(`/pedidos/${order.id}`)
     } catch (err) {

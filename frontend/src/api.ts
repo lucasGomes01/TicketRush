@@ -1,4 +1,4 @@
-// Cliente da API. O X-Client-Id identifica o comprador anônimo (gerado uma vez por navegador).
+// Cliente da API. Rotas de reserva e pedido exigem o JWT do usuário logado (header Authorization).
 
 export type EventSummary = {
   id: string
@@ -44,6 +44,21 @@ export type Order = {
   holdExpiresAt: string | null
 }
 
+export type OrderSummary = {
+  id: string
+  status: OrderStatus
+  eventTitle: string
+  eventVenue: string
+  eventStartsAt: string
+  total: number
+  createdAt: string
+  seatIds: string[]
+}
+
+export type User = { id: string; name: string; email: string; isAdmin: boolean }
+
+export type AuthResponse = { token: string; expiresAt: string; user: User }
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -54,29 +69,41 @@ export class ApiError extends Error {
   }
 }
 
-function getClientId() {
-  const key = 'ticketrush:clientId'
-  let id = localStorage.getItem(key)
-  if (!id) {
-    // crypto.randomUUID só existe em contexto seguro (HTTPS/localhost); acessando pelo IP da rede usamos getRandomValues.
-    id =
-      typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : ([1e7] as unknown as string + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-            (Number(c) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))).toString(16),
-          )
-    localStorage.setItem(key, id)
-  }
-  return id
+// Sessão: o token fica no localStorage e expira em 8 horas (o servidor também valida).
+const sessionKey = 'ticketrush:session'
+
+export const session = {
+  get(): AuthResponse | null {
+    try {
+      const saved = JSON.parse(localStorage.getItem(sessionKey) ?? 'null') as AuthResponse | null
+      return saved && new Date(saved.expiresAt) > new Date() ? saved : null
+    } catch {
+      return null
+    }
+  },
+  save(auth: AuthResponse) {
+    localStorage.setItem(sessionKey, JSON.stringify(auth))
+  },
+  clear() {
+    localStorage.removeItem(sessionKey)
+    window.dispatchEvent(new Event('ticketrush:logout'))
+  },
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = session.get()?.token
   const response = await fetch(path, {
     ...init,
-    headers: { 'Content-Type': 'application/json', 'X-Client-Id': getClientId(), ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   })
 
   if (!response.ok) {
+    // Token expirado ou inválido: encerra a sessão para a interface pedir login de novo.
+    if (response.status === 401 && token) session.clear()
     const problem = await response.json().catch(() => null)
     const validation = problem?.errors ? Object.values(problem.errors).flat().join(' ') : null
     throw new ApiError(response.status, validation || problem?.title || 'Erro inesperado.', problem?.details)
@@ -86,6 +113,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  register: (name: string, email: string, password: string) =>
+    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
+  login: (email: string, password: string) =>
+    request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+
   listEvents: () => request<EventSummary[]>('/api/events'),
   getEvent: (id: string) => request<EventDetails>(`/api/events/${id}`),
   getSeatMap: (id: string) => request<SeatMap>(`/api/events/${id}/seats`),
@@ -97,14 +129,5 @@ export const api = {
     request<Order>('/api/orders', { method: 'POST', body: JSON.stringify({ holdId, customerName, customerEmail }) }),
   payOrder: (orderId: string) => request<Order>(`/api/orders/${orderId}/pay`, { method: 'POST' }),
   getOrder: (orderId: string) => request<Order>(`/api/orders/${orderId}`),
-}
-
-// Pedidos feitos neste navegador (para a página "Meus ingressos").
-const ordersKey = 'ticketrush:orders'
-export const myOrders = {
-  list: (): string[] => JSON.parse(localStorage.getItem(ordersKey) ?? '[]'),
-  add: (id: string) => {
-    const ids = myOrders.list().filter((x) => x !== id)
-    localStorage.setItem(ordersKey, JSON.stringify([id, ...ids].slice(0, 20)))
-  },
+  listMyOrders: () => request<OrderSummary[]>('/api/orders'),
 }

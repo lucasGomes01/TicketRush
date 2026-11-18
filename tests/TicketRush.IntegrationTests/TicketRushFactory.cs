@@ -1,4 +1,7 @@
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using TicketRush.Shared.Auth;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
@@ -25,12 +28,18 @@ public sealed class TicketRushFactory : WebApplicationFactory<Program>, IAsyncLi
         builder.UseSetting("ConnectionStrings:Redis", _redis.GetConnectionString());
         // O teste de concorrência dispara centenas de reservas: desliga o rate limit aqui.
         builder.UseSetting("RateLimiting:Holds:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:Auth:PermitLimit", "100000");
+        builder.UseSetting("Auth:AdminEmails:0", AdminEmail);
     }
 
-    public HttpClient CreateClientFor(string clientId)
+    public const string AdminEmail = "admin@ticketrush.test";
+
+    /// <summary>Cliente autenticado como o usuário <paramref name="userId"/> (token emitido direto, sem cadastro).</summary>
+    public HttpClient CreateClientFor(string userId, bool isAdmin = false)
     {
+        var (token, _) = Services.GetRequiredService<JwtTokens>().Issue(userId, userId, $"{userId}@ticketrush.test", isAdmin);
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-Client-Id", clientId);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
 

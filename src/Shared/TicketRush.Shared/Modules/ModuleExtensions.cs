@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using StackExchange.Redis;
+using TicketRush.Shared.Auth;
 using TicketRush.Shared.Caching;
 using TicketRush.Shared.Database;
 using TicketRush.Shared.Messaging;
@@ -40,6 +41,7 @@ public static class ModuleExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IEventBus, InMemoryEventBus>();
         services.AddSingleton<ICacheService, RedisCacheService>();
+        services.AddJwtAuth();
 
         foreach (var module in modules)
         {

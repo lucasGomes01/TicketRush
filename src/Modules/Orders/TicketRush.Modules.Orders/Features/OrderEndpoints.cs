@@ -41,8 +41,9 @@ internal static class OrderEndpoints
 
     public static void Map(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/orders").WithTags("Orders");
+        var group = app.MapGroup("/api/orders").WithTags("Orders").RequireAuthorization();
 
+        group.MapGet("/", ListMineAsync).WithSummary("Pedidos do usuário logado (mais recentes primeiro).");
         group.MapPost("/", CreateAsync).WithSummary("Cria um pedido a partir de uma reserva válida.");
         group.MapPost("/{id:guid}/pay", PayAsync).WithSummary("Simula o pagamento e publica OrderPaid via outbox.");
         group.MapGet("/{id:guid}", GetAsync).WithSummary("Status do pedido e ingressos emitidos.");
@@ -162,6 +163,17 @@ internal static class OrderEndpoints
         await transaction.CommitAsync(ct);
 
         return Results.Accepted($"/api/orders/{id}", await ToResponseAsync(order, ticketing, ct));
+    }
+
+    private static async Task<IResult> ListMineAsync(HttpContext http, NpgsqlDataSource dataSource, CancellationToken ct)
+    {
+        if (http.GetClientId() is not { } clientId)
+        {
+            return ClientId.Missing();
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync(ct);
+        return Results.Ok(await connection.ListByClientAsync(clientId));
     }
 
     private static async Task<IResult> GetAsync(Guid id, HttpContext http, ITicketingModuleApi ticketing, NpgsqlDataSource dataSource, CancellationToken ct)

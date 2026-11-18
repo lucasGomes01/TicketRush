@@ -1,6 +1,7 @@
 using System.Reflection;
 using NetArchTest.Rules;
 using TicketRush.Modules.Events;
+using TicketRush.Modules.Identity;
 using TicketRush.Modules.Orders;
 using TicketRush.Modules.Ticketing;
 using TicketRush.Shared.Modules;
@@ -18,6 +19,7 @@ public class ModuleBoundaryTests
         typeof(EventsModule).Assembly,
         typeof(TicketingModule).Assembly,
         typeof(OrdersModule).Assembly,
+        typeof(IdentityModule).Assembly,
     ];
 
     public static TheoryData<string> Modules => new(ModuleAssemblies.Select(a => a.GetName().Name!));

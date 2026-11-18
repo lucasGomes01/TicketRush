@@ -8,6 +8,9 @@
     <Project Path="src/Modules/Events/TicketRush.Modules.Events.Contracts/TicketRush.Modules.Events.Contracts.csproj" />
     <Project Path="src/Modules/Events/TicketRush.Modules.Events/TicketRush.Modules.Events.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/TicketRush.Modules.Identity/TicketRush.Modules.Identity.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Orders/">
     <Project Path="src/Modules/Orders/TicketRush.Modules.Orders.Contracts/TicketRush.Modules.Orders.Contracts.csproj" />
     <Project Path="src/Modules/Orders/TicketRush.Modules.Orders/TicketRush.Modules.Orders.csproj" />

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Npgsql;
+using TicketRush.Shared.Auth;
 using TicketRush.Shared.Caching;
 using TicketRush.Shared.Http;
 
@@ -32,7 +33,8 @@ internal static partial class EventEndpoints
             .WithSummary("Detalhes do evento e mapa de seções (cache Redis).");
 
         group.MapPost("/", CreateAsync)
-            .WithSummary("Cria um evento e invalida o cache do catálogo.");
+            .RequireAuthorization(AuthExtensions.AdminPolicy)
+            .WithSummary("Cria um evento (somente admin) e invalida o cache do catálogo.");
     }
 
     private static async Task<IResult> CreateAsync(

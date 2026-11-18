@@ -36,6 +36,7 @@ The system is one deployable split into modules. Each module owns its endpoints,
 flowchart LR
     subgraph API["TicketRush.Api (bootstrapper)"]
       direction LR
+      I["Identity<br/><small>accounts, JWT</small>"]
       E["Events<br/><small>catalog, sections, prices</small>"]
       T["Ticketing<br/><small>holds, tickets</small>"]
       O["Orders<br/><small>checkout, payment</small>"]
@@ -47,7 +48,8 @@ flowchart LR
     O -. "OrderPaid (outbox)" .-> T
     T -. "TicketsIssued / TicketIssuanceFailed (outbox)" .-> O
 
-    E --- PG[("PostgreSQL<br/>schemas: events · ticketing · orders")]
+    I --- PG
+    E --- PG[("PostgreSQL<br/>schemas: identity · events · ticketing · orders")]
     T --- PG
     O --- PG
     E --- R[("Redis<br/>cache · holds · rate limit")]
@@ -57,8 +59,9 @@ flowchart LR
 ```
 src/
   Bootstrapper/TicketRush.Api        Program.cs, which only composes the modules
-  Shared/TicketRush.Shared           IModule, DbUp runner, outbox, event bus, cache, rate limit
+  Shared/TicketRush.Shared           IModule, DbUp runner, outbox, event bus, cache, rate limit, JWT
   Modules/
+    Identity/  TicketRush.Modules.Identity
     Events/    TicketRush.Modules.Events      (+ .Contracts)
     Ticketing/ TicketRush.Modules.Ticketing   (+ .Contracts)
     Orders/    TicketRush.Modules.Orders      (+ .Contracts)
@@ -114,6 +117,12 @@ sequenceDiagram
 - Each module embeds its SQL scripts in `Database/Scripts/` and keeps its own journal (`{schema}.schema_versions`), so modules evolve their schemas independently, the way separate services would. See [`DatabaseMigrator.cs`](src/Shared/TicketRush.Shared/Database/DatabaseMigrator.cs).
 - Versioned plain SQL pairs well with Dapper: no ORM and no hidden queries.
 
+**Authentication**
+- The `Identity` module owns accounts in its own `identity` schema. Passwords are hashed with ASP.NET Core Identity's `PasswordHasher` (PBKDF2, HMAC-SHA512, 100k iterations).
+- Register and login return a JWT (HS256, 8 h). Holds and orders require it, and each hold or order belongs to the user in the token's `sub` claim, so "My tickets" works on any device.
+- Login and register are rate limited per IP. A wrong email and a wrong password return the same message, so the API does not reveal who has an account.
+- Admins are not a sign-up option: they come from configuration (`Auth:AdminEmails`). Only admins can create events.
+
 **Modular monolith**
 - `Program.cs` only knows `IModule`. Registering a module takes one line.
 - Synchronous calls go through contract interfaces. Asynchronous ones go through integration events and a transactional outbox (one per schema). Swapping the in-memory bus for RabbitMQ would not change the modules.
@@ -124,8 +133,11 @@ sequenceDiagram
 ### With Docker
 
 ```bash
+cp .env.example .env      # set AUTH_SIGNING_KEY (32+ random chars) and, optionally, ADMIN_EMAIL
 docker compose up -d --build
 ```
+
+Without `AUTH_SIGNING_KEY` the API still starts, but it generates a temporary key, so everyone is signed out whenever it restarts.
 
 - Web: http://localhost:8088
 - API reference (Scalar): http://localhost:5080/scalar
@@ -154,29 +166,37 @@ dotnet test        # Docker must be running (Testcontainers)
 | `Hold_is_all_or_nothing` | If one requested seat is taken, none of them are held |
 | `Full_purchase_issues_tickets_through_the_outbox` | Hold, order, payment, then tickets issued asynchronously |
 | `Another_client_cannot_checkout_someone_elses_hold` | A hold belongs to whoever created it |
+| `AuthTests` | Register, login, duplicate email, weak password, login required for holds, admin-only event creation, "my orders" isolation |
 | `ModuleBoundaryTests` | Module boundaries and per-module migrations |
 
 ### Load test
 
+The script signs up 100 buyers first, so start the API with a higher sign-up limit:
+
 ```bash
+AUTH_RATE_LIMIT=1000 docker compose up -d api
 docker run --rm -v "$PWD/loadtest:/scripts" -e BASE_URL=http://host.docker.internal:5080 grafana/k6 run /scripts/oversell.js
 ```
 
 ## API
 
-| Method | Route | Module |
-| --- | --- | --- |
-| `GET` | `/api/events` | Events (cached) |
-| `GET` | `/api/events/{id}` | Events (cached) |
-| `POST` | `/api/events` | Events |
-| `GET` | `/api/events/{id}/seats` | Ticketing |
-| `POST` | `/api/holds` | Ticketing (rate limited) |
-| `GET` / `DELETE` | `/api/holds/{id}` | Ticketing |
-| `POST` | `/api/orders` | Orders |
-| `POST` | `/api/orders/{id}/pay` | Orders |
-| `GET` | `/api/orders/{id}` | Orders |
+| Method | Route | Module | Auth |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/register` | Identity | public, rate limited |
+| `POST` | `/api/auth/login` | Identity | public, rate limited |
+| `GET` | `/api/auth/me` | Identity | user |
+| `GET` | `/api/events` | Events (cached) | public |
+| `GET` | `/api/events/{id}` | Events (cached) | public |
+| `POST` | `/api/events` | Events | admin |
+| `GET` | `/api/events/{id}/seats` | Ticketing | public |
+| `POST` | `/api/holds` | Ticketing (rate limited) | user |
+| `GET` / `DELETE` | `/api/holds/{id}` | Ticketing | user (owner) |
+| `GET` | `/api/orders` | Orders | user (own orders) |
+| `POST` | `/api/orders` | Orders | user |
+| `POST` | `/api/orders/{id}/pay` | Orders | user (owner) |
+| `GET` | `/api/orders/{id}` | Orders | user (owner) |
 
-Buyers are identified by an `X-Client-Id` header (a UUID the web app generates once per browser). A real system would use an authenticated user instead.
+Send the token as `Authorization: Bearer <token>`.
 
 ## Decisions and trade-offs
 
@@ -187,7 +207,7 @@ Buyers are identified by an `X-Client-Id` header (a UUID the web app generates o
 
 ## What's next
 
-- [ ] JWT authentication instead of `X-Client-Id`
+- [ ] Refresh tokens and password reset by e-mail
 - [ ] Push seat-map updates over SignalR (Redis backplane) instead of polling
 - [ ] Virtual waiting room for very high-demand events
 - [ ] OpenTelemetry traces across hold → order → issuance

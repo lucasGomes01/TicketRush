@@ -1,18 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type EventDetails, type Hold, type SeatMap as SeatMapData } from '../api'
+import { loginPath, useAuth } from '../auth'
 import { SeatMap } from '../components/SeatMap'
 import { formatDate, formatMoney, useCountdown } from '../format'
 
 const MAX_SEATS = 6
 const holdKey = (eventId: string) => `ticketrush:hold:${eventId}`
+// Seleção feita antes do login: é restaurada quando a pessoa volta da tela de entrar.
+const pendingKey = (eventId: string) => `ticketrush:pending:${eventId}`
+
+function takePendingSelection(eventId: string): string[] {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(pendingKey(eventId)) ?? '[]')
+    sessionStorage.removeItem(pendingKey(eventId))
+    return Array.isArray(saved) ? saved.slice(0, MAX_SEATS) : []
+  } catch {
+    return []
+  }
+}
 
 export function EventPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [event, setEvent] = useState<EventDetails | null>(null)
   const [seatMap, setSeatMap] = useState<SeatMapData>({ eventId: id, sold: [], held: [] })
-  const [selected, setSelected] = useState<string[]>([])
+  const [selected, setSelected] = useState<string[]>(() => takePendingSelection(id))
   const [hold, setHold] = useState<Hold | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
@@ -26,14 +40,19 @@ export function EventPage() {
 
     // Recupera a reserva ativa deste evento (se o usuário recarregou a página).
     const saved = sessionStorage.getItem(holdKey(id))
-    if (saved) {
+    if (saved && user) {
       api.getHold(saved).then(setHold).catch(() => sessionStorage.removeItem(holdKey(id)))
     }
 
     // Atualiza o mapa periodicamente para mostrar reservas de outras pessoas.
     const timer = setInterval(refreshSeats, 3000)
     return () => clearInterval(timer)
-  }, [id, refreshSeats])
+  }, [id, refreshSeats, user])
+
+  // Saiu da conta: a reserva pertence ao usuário anterior, então some da tela.
+  useEffect(() => {
+    if (!user) setHold(null)
+  }, [user])
 
   useEffect(() => {
     if (hold && seconds === 0) {
@@ -77,6 +96,12 @@ export function EventPage() {
   }
 
   async function reserve() {
+    if (!user) {
+      sessionStorage.setItem(pendingKey(id), JSON.stringify(selected))
+      navigate(loginPath(`/eventos/${id}`))
+      return
+    }
+
     setBusy(true)
     setMessage(null)
     try {
@@ -168,7 +193,7 @@ export function EventPage() {
               )}
               <div className="total"><span>Total</span><strong>{formatMoney(selectedTotal)}</strong></div>
               <button className="btn primary" onClick={reserve} disabled={busy || selected.length === 0}>
-                {busy ? 'Reservando…' : 'Reservar assentos'}
+                {busy ? 'Reservando…' : user ? 'Reservar assentos' : 'Entrar para reservar'}
               </button>
             </>
           )}

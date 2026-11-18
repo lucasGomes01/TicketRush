@@ -4,6 +4,10 @@ using TicketRush.Modules.Orders.Domain;
 
 namespace TicketRush.Modules.Orders.Infrastructure;
 
+internal sealed record OrderSummary(
+    Guid Id, string Status, string EventTitle, string EventVenue, DateTime EventStartsAt, decimal Total, DateTime CreatedAt,
+    IReadOnlyList<string> SeatIds);
+
 internal static class OrdersRepository
 {
     public static async Task<Order?> GetAsync(this IDbConnection connection, Guid id, IDbTransaction? transaction = null, bool forUpdate = false)
@@ -20,6 +24,28 @@ internal static class OrdersRepository
         order.LoadItems(items);
         return order;
     }
+
+    public static async Task<IReadOnlyList<OrderSummary>> ListByClientAsync(this IDbConnection connection, string clientId, int limit = 50)
+    {
+        var orders = (await connection.QueryAsync<OrderSummaryRow>(
+            """
+            SELECT id, status, event_title, event_venue, event_starts_at, total, created_at
+            FROM orders.orders WHERE client_id = @clientId
+            ORDER BY created_at DESC LIMIT @limit
+            """,
+            new { clientId, limit })).ToList();
+
+        var seats = (await connection.QueryAsync<(Guid OrderId, string SeatId)>(
+                "SELECT order_id, seat_id FROM orders.order_items WHERE order_id = ANY(@ids) ORDER BY seat_id",
+                new { ids = orders.Select(o => o.Id).ToArray() }))
+            .ToLookup(x => x.OrderId, x => x.SeatId);
+
+        return orders
+            .Select(o => new OrderSummary(o.Id, o.Status, o.EventTitle, o.EventVenue, o.EventStartsAt, o.Total, o.CreatedAt, [.. seats[o.Id]]))
+            .ToList();
+    }
+
+    private sealed record OrderSummaryRow(Guid Id, string Status, string EventTitle, string EventVenue, DateTime EventStartsAt, decimal Total, DateTime CreatedAt);
 
     public static Task<Guid?> FindIdByHoldAsync(this IDbConnection connection, Guid holdId) =>
         connection.QuerySingleOrDefaultAsync<Guid?>("SELECT id FROM orders.orders WHERE hold_id = @holdId", new { holdId });

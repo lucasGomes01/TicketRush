@@ -1,23 +1,17 @@
 using Microsoft.AspNetCore.Http;
+using TicketRush.Shared.Auth;
 
 namespace TicketRush.Shared.Http;
 
 /// <summary>
-/// Identificador anônimo do comprador. O front gera um UUID e envia no header X-Client-Id.
-/// (Num sistema real isso viria do usuário autenticado.)
+/// Dono das reservas e pedidos: o usuário autenticado (claim "sub" do JWT).
 /// </summary>
 public static class ClientId
 {
-    public const string HeaderName = "X-Client-Id";
-
-    public static string? GetClientId(this HttpContext context)
-    {
-        var value = context.Request.Headers[HeaderName].ToString();
-        return string.IsNullOrWhiteSpace(value) || value.Length > 64 ? null : value;
-    }
+    public static string? GetClientId(this HttpContext context) => context.User.GetUserId();
 
     public static IResult Missing() =>
-        Problems.BadRequest($"Header {HeaderName} é obrigatório.");
+        Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Entre na sua conta para continuar.");
 }
 
 public static class Problems

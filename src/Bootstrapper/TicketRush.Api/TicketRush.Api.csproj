@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\Modules\Events\TicketRush.Modules.Events\TicketRush.Modules.Events.csproj" />
     <ProjectReference Include="..\..\Modules\Ticketing\TicketRush.Modules.Ticketing\TicketRush.Modules.Ticketing.csproj" />
     <ProjectReference Include="..\..\Modules\Orders\TicketRush.Modules.Orders\TicketRush.Modules.Orders.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\TicketRush.Modules.Identity\TicketRush.Modules.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -31,6 +31,10 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=ticketrush;Username=ticketrush;Password=ticketrush
       ConnectionStrings__Redis: redis:6379
+      Auth__SigningKey: ${AUTH_SIGNING_KEY:-}
+      Auth__AdminEmails__0: ${ADMIN_EMAIL:-}
+      # Para o teste de carga: AUTH_RATE_LIMIT=1000 docker compose up -d api
+      RateLimiting__Auth__PermitLimit: ${AUTH_RATE_LIMIT:-10}
     ports:
       - "5080:8080"
     depends_on:

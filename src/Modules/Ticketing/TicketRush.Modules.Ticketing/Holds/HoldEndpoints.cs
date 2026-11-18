@@ -27,7 +27,7 @@ internal static class HoldEndpoints
             .WithTags("Ticketing")
             .WithSummary("Assentos vendidos (PostgreSQL) e reservados no momento (Redis).");
 
-        var holds = app.MapGroup("/api/holds").WithTags("Ticketing");
+        var holds = app.MapGroup("/api/holds").WithTags("Ticketing").RequireAuthorization();
 
         holds.MapPost("/", CreateAsync)
             .RequireRedisRateLimit("Holds", defaultPermitLimit: 10, defaultWindowSeconds: 10)

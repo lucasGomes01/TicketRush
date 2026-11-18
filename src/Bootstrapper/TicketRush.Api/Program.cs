@@ -3,6 +3,7 @@ using Npgsql;
 using Scalar.AspNetCore;
 using StackExchange.Redis;
 using TicketRush.Modules.Events;
+using TicketRush.Modules.Identity;
 using TicketRush.Modules.Orders;
 using TicketRush.Modules.Ticketing;
 using TicketRush.Shared.Modules;
@@ -10,7 +11,7 @@ using TicketRush.Shared.Modules;
 var builder = WebApplication.CreateBuilder(args);
 
 // O monolito é só a composição dos módulos. Cada módulo é dono dos seus endpoints, serviços e schema.
-IModule[] modules = [new EventsModule(), new TicketingModule(), new OrdersModule()];
+IModule[] modules = [new IdentityModule(), new EventsModule(), new TicketingModule(), new OrdersModule()];
 builder.Services.AddModules(builder.Configuration, modules);
 
 builder.Services.AddOpenApi();
@@ -28,6 +29,8 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 await app.MigrateModulesAsync();
 
