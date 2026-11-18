@@ -1,1 +1,0 @@
-{"root":["./src/api.ts","./src/auth.tsx","./src/format.ts","./src/main.tsx","./src/components/seatmap.tsx","./src/pages/checkoutpage.tsx","./src/pages/eventpage.tsx","./src/pages/homepage.tsx","./src/pages/loginpage.tsx","./src/pages/myticketspage.tsx","./src/pages/orderpage.tsx","./vite.config.ts"],"version":"5.9.3"}
