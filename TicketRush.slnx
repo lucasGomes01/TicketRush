@@ -1,0 +1,26 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Bootstrapper/">
+    <Project Path="src/Bootstrapper/TicketRush.Api/TicketRush.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Events/">
+    <Project Path="src/Modules/Events/TicketRush.Modules.Events.Contracts/TicketRush.Modules.Events.Contracts.csproj" />
+    <Project Path="src/Modules/Events/TicketRush.Modules.Events/TicketRush.Modules.Events.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Orders/">
+    <Project Path="src/Modules/Orders/TicketRush.Modules.Orders.Contracts/TicketRush.Modules.Orders.Contracts.csproj" />
+    <Project Path="src/Modules/Orders/TicketRush.Modules.Orders/TicketRush.Modules.Orders.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Ticketing/">
+    <Project Path="src/Modules/Ticketing/TicketRush.Modules.Ticketing.Contracts/TicketRush.Modules.Ticketing.Contracts.csproj" />
+    <Project Path="src/Modules/Ticketing/TicketRush.Modules.Ticketing/TicketRush.Modules.Ticketing.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/TicketRush.Shared/TicketRush.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TicketRush.ArchitectureTests/TicketRush.ArchitectureTests.csproj" />
+    <Project Path="tests/TicketRush.IntegrationTests/TicketRush.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

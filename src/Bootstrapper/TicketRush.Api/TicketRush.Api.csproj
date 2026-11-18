@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Events\TicketRush.Modules.Events\TicketRush.Modules.Events.csproj" />
+    <ProjectReference Include="..\..\Modules\Ticketing\TicketRush.Modules.Ticketing\TicketRush.Modules.Ticketing.csproj" />
+    <ProjectReference Include="..\..\Modules\Orders\TicketRush.Modules.Orders\TicketRush.Modules.Orders.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+    <PackageReference Include="Scalar.AspNetCore" Version="3.0.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

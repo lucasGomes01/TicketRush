@@ -1,0 +1,6 @@
+<Project>
+  <!-- Scripts SQL de cada módulo são embutidos no assembly e executados pelo DbUp na inicialização. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Database\Scripts\*.sql" />
+  </ItemGroup>
+</Project>
