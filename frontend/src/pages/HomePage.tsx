@@ -14,8 +14,8 @@ export function HomePage() {
   return (
     <>
       <section className="intro">
-        <p className="eyebrow">Temporada 2027</p>
-        <h1>Próximas datas</h1>
+        <p className="eyebrow">Programação</p>
+        <h1>Temporada <em>2027</em></h1>
         <p className="lede">
           Escolha o lugar no mapa e ele fica separado para você por dez minutos enquanto finaliza a compra.
         </p>
@@ -33,12 +33,13 @@ export function HomePage() {
                 <div className="date-block">
                   <span className="date-day">{d.day}</span>
                   <span className="date-month">{d.month}</span>
+                  <span className="date-weekday">{d.weekday}</span>
                 </div>
                 <div className="listing-main">
                   <span className="tag">{event.category}</span>
                   <h2>{event.title}</h2>
                   <p className="muted">
-                    {event.venue}, {event.city} · {d.weekday}, {d.time}
+                    {event.venue}, {event.city} · {d.time}
                   </p>
                 </div>
                 <div className="listing-price">
@@ -46,7 +47,7 @@ export function HomePage() {
                   <strong>{formatMoney(event.minPrice)}</strong>
                   <span className="muted small">{event.totalSeats} lugares</span>
                 </div>
-                <span className="listing-cta">Ingressos</span>
+                <span className="listing-cta">Escolher lugares</span>
               </Link>
             </li>
           )
